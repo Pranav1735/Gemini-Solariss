@@ -1,15 +1,15 @@
 import express from 'express';
-//import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// Import models to initialize associations
+
+// Sequelize instance
 import { sequelize } from './models/index.js';
 
-// Import routes
+// Routes
 import authRoutes from './routes/authRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
@@ -20,46 +20,50 @@ import couponRoutes from './routes/couponRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
-// Load environment variables
-//dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Security middleware
+/* -------------------- SECURITY & MIDDLEWARE -------------------- */
+
 app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
 
-// Rate limiting
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+  })
+);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
 });
-app.use('/api/', limiter);
+app.use('/api', limiter);
 
-// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Static files
+/* -------------------- STATIC FILES -------------------- */
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Health check
+/* -------------------- HEALTH CHECK -------------------- */
+
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'GEMINI SOLARISS API is running' });
+  res.json({
+    status: 'OK',
+    message: 'GEMINI SOLARISS API is running',
+  });
 });
 
-// API Routes
+/* -------------------- ROUTES -------------------- */
+
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -70,53 +74,49 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Error handling middleware
+/* -------------------- ERROR HANDLERS -------------------- */
+
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error(err);
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Route not found'
+    message: 'Route not found',
   });
 });
 
-// PostgreSQL connection
+/* -------------------- DATABASE CONNECTION -------------------- */
+
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('PostgreSQL Connected successfully');
-    
-    // Sync database (create tables if they don't exist)
+    console.log('✅ PostgreSQL connected');
+
     if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: false }); // Use { force: true } to drop and recreate tables
-      console.log('Database synchronized');
+      await sequelize.sync({ alter: false });
+      console.log('🛠️ Database synced (dev only)');
     }
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
-    process.exit(1);
+    console.error('❌ Database connection failed:', error.message);
+    // IMPORTANT: do NOT crash server in production
   }
 };
 
-// Start server
+/* -------------------- START SERVER -------------------- */
+
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 GEMINI SOLARISS Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || "development"}`);
+app.listen(PORT, async () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
 
-  // Connect DB AFTER server starts
-  connectDB()
-    .then(() => console.log("✅ Database connected"))
-    .catch(err => console.error("❌ Database connection failed:", err.message));
+  await connectDB();
 });
 
 export default app;
-
