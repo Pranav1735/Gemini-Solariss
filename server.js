@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import sequelize from './models/index.js'; // ✅ FIXED IMPORT
+import sequelize from './config/database.js'; // ✅ FIXED IMPORT
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
