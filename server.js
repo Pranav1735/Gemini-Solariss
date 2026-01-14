@@ -5,9 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
-// Sequelize instance
-import { sequelize } from './models/index.js';
+import sequelize from './models/index.js'; // ✅ FIXED IMPORT
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -25,16 +23,15 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-/* -------------------- SECURITY & MIDDLEWARE -------------------- */
-
+/* ------------------- MIDDLEWARE ------------------- */
 app.use(helmet());
+app.use(cors({ origin: '*', credentials: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true,
-  })
-);
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -42,27 +39,10 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-/* -------------------- STATIC FILES -------------------- */
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-/* -------------------- HEALTH CHECK -------------------- */
-
+/* ------------------- ROUTES ------------------- */
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'GEMINI SOLARISS API is running',
-  });
+  res.status(200).json({ status: 'OK' });
 });
-
-/* -------------------- ROUTES -------------------- */
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -74,49 +54,22 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 
-/* -------------------- ERROR HANDLERS -------------------- */
+/* ------------------- START SERVER SAFELY ------------------- */
+const PORT = process.env.PORT || 3000;
 
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
-  });
-});
-
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-  });
-});
-
-/* -------------------- DATABASE CONNECTION -------------------- */
-
-const connectDB = async () => {
+const startServer = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected');
 
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: false });
-      console.log('🛠️ Database synced (dev only)');
-    }
-  } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    // IMPORTANT: do NOT crash server in production
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+    });
+  } catch (err) {
+    console.error('❌ Startup failed:', err.message);
+    process.exit(1);
   }
 };
 
-/* -------------------- START SERVER -------------------- */
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
-
-  await connectDB();
-});
-
-export default app;
+startServer();
