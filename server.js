@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import sequelize from './config/database.js'; // ✅ FIXED IMPORT
+import sequelize from './config/database.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -33,11 +33,13 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-});
-app.use('/api', limiter);
+app.use(
+  '/api',
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+  })
+);
 
 /* ------------------- ROUTES ------------------- */
 app.get('/health', (req, res) => {
@@ -54,22 +56,18 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 
-/* ------------------- START SERVER SAFELY ------------------- */
+/* ------------------- START SERVER (NON-BLOCKING) ------------------- */
 const PORT = process.env.PORT || 3000;
 
-const startServer = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ PostgreSQL connected');
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
 
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-    });
-  } catch (err) {
-    console.error('❌ Startup failed:', err.message);
-    process.exit(1);
-  }
-};
-
-startServer();
+  // Connect DB AFTER server is live
+  sequelize
+    .authenticate()
+    .then(() => console.log('✅ PostgreSQL connected'))
+    .catch((err) =>
+      console.error('❌ PostgreSQL connection failed:', err.message)
+    );
+});
