@@ -106,13 +106,16 @@ const connectDB = async () => {
 };
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 GEMINI SOLARISS Server running on port ${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+app.listen(PORT, () => {
+  console.log(`🚀 GEMINI SOLARISS Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || "development"}`);
+
+  // Connect DB AFTER server starts
+  connectDB()
+    .then(() => console.log("✅ Database connected"))
+    .catch(err => console.error("❌ Database connection failed:", err.message));
 });
 
 export default app;
